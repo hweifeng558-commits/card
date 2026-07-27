@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>賀卡快速排版列印工具</title>
+<style>
+  :root{
+    --ink:#2b2b2b;
+    --paper:#faf7f2;
+    --line:#d8d0c4;
+    --accent:#a3231f;
+    --accent-soft:#f1e3e0;
+    --guide:#1c6ea4;
+    --guide-soft:rgba(28,110,164,.12);
+    --exclude:rgba(180,140,20,.35);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;
+    display:flex; min-height:100vh;
+  }
+  .panel{
+    width:380px; flex:0 0 380px; padding:22px 20px; background:#fff;
+    border-right:1px solid var(--line); overflow-y:auto; height:100vh;
+  }
+  .panel h1{font-size:17px; margin:0 0 4px; letter-spacing:.02em;}
+  .panel .sub{font-size:12px; color:#8a8378; margin:0 0 18px; line-height:1.5;}
+  .sizes{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:18px;}
+  .sizes button{
+    border:1px solid var(--line); background:#fff; border-radius:8px;
+    padding:10px 6px; font-size:12.5px; cursor:pointer; color:var(--ink);
+    transition:.15s;
+  }
+  .sizes button.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12.5px; color:#665f54; margin-bottom:4px; font-weight:600;}
+  .field input[type=text], .field textarea, .field select{
+    width:100%; padding:7px 8px; border:1px solid var(--line); border-radius:6px;
+    font-size:14px; font-family:inherit; resize:vertical;
+  }
+  .field .hint{font-size:11px; color:#a19a8d; margin-top:3px;}
+  .field-row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .field-with-size{display:flex; gap:6px;}
+  .field-with-size input[type=text], .field-with-size select{flex:1; min-width:0;}
+  .size-input{width:60px; flex:0 0 60px;}
+  .row3{display:grid; grid-template-columns:repeat(4,1fr); gap:6px;}
+  .row3 input{width:100%; padding:5px 4px; font-size:11.5px; border:1px solid var(--line); border-radius:5px;}
+  details{border-top:1px dashed var(--line); margin-top:16px; padding-top:12px;}
+  summary{cursor:pointer; font-size:13px; font-weight:600; color:var(--accent); margin-bottom:10px;}
+  .zone-cal{margin-bottom:12px; padding:8px 8px 10px; background:#faf9f7; border-radius:7px;}
+  .zone-cal .name{font-size:12px; font-weight:700; margin-bottom:2px;}
+  .zone-cal .fontnote{font-size:10.5px; color:#a3231f; margin-bottom:5px;}
+  .zone-cal .lbl4{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; font-size:10px; color:#999; margin-bottom:2px; text-align:center;}
+  .fmt-row{display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;}
+  .fmt-row label{display:flex; align-items:center; gap:4px; font-size:11.5px; color:#665f54; font-weight:400;}
+  .fmt-row select{font-size:11.5px; padding:3px 4px; border:1px solid var(--line); border-radius:5px;}
+  .actions{display:flex; gap:8px; margin-top:18px;}
+  .actions button{
+    flex:1; padding:10px; border-radius:7px; border:none; cursor:pointer;
+    font-size:13.5px; font-weight:700;
+  }
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-secondary{background:#eee; color:var(--ink);}
+  .status{font-size:11.5px; color:#8a8378; margin-top:8px; min-height:14px;}
+  .stage{
+    flex:1; display:flex; align-items:flex-start; justify-content:center;
+    padding:40px 30px; overflow:auto; background:#efece5;
+  }
+  .page{
+    position:relative; background:#c8262a; box-shadow:0 6px 24px rgba(0,0,0,.18);
+  }
+  .zone{
+    position:absolute; display:flex; flex-direction:row-reverse; overflow:hidden;
+  }
+  .zone .col{
+    writing-mode:vertical-rl; text-orientation:upright;
+    font-family:"DFKai-SB","BiauKai","標楷體","KaiTi",serif;
+    color:#111; white-space:nowrap; line-height:1.08; letter-spacing:.02em;
+    display:flex; justify-content:center;
+  }
+  .guide-box{position:absolute; border:1.5px dashed var(--guide); background:var(--guide-soft); pointer-events:none;}
+  .guide-box .tag{position:absolute; top:-18px; left:0; font-size:10px; color:var(--guide); white-space:nowrap;}
+  .exclude-box{position:absolute; pointer-events:none;}
+  .exclude-box .tag{position:absolute; top:-16px; left:0; font-size:10px; color:#9a7a10;}
+  .exclude-fill{
+    width:100%; height:100%;
+    background:repeating-linear-gradient(45deg,var(--exclude),var(--exclude) 4px,transparent 4px,transparent 8px);
+    border:1px dashed #9a7a10;
+  }
+  .print-tips{font-size:11px; color:#8a8378; line-height:1.6; margin-top:14px; padding-top:12px; border-top:1px dashed var(--line);}
+  .src-note{font-size:10.5px; color:#9a7a10; background:#fbf3e0; border-radius:5px; padding:6px 8px; margin:-8px 0 14px;}
+
+  @media print{
+    body{background:#fff;}
+    .panel{display:none;}
+    .stage{display:block !important; padding:0 !important; margin:0 !important; background:#fff !important; overflow:visible !important;}
+    .guide-box, .exclude-box{display:none !important;}
+    .page{box-shadow:none !important; background:#fff !important; margin:0 !important;}
+  }
+</style>
+<style id="pageSizeStyle"></style>
+</head>
+<body>
+
+<div class="panel">
+  <h1>賀卡快速排版列印工具</h1>
+  <p class="sub">選尺寸 → 填文字 → 直接列印。版位一次校正好，之後每次都套用同樣位置，不再跑版。</p>
+  <div class="src-note">A4 版位已改用你實際量測的座標（左上角為原點）：祝賀對象(15,6.5)-(19.8,28.5)、祝賀主題(11.5,2)-(15,17)、賀詞(5.5,4.5)-(11.5,27.5)、祝賀人頭銜(0.5,7.5)-(5.5,15)、祝賀人姓名(0.5,15)-(5.5,22.5)、「祝」字(15,0)-(21,6)、燙金花邊為左緣8cm漸縮至x=8.2cm處3cm的楔形。「賀／敬賀」座標你訊息中沒打完，目前先暫用(0.5,22.5)-(5.5,28.5)，請確認或修正。</div>
+
+  <div class="sizes" id="sizeButtons"></div>
+
+  <div class="field">
+    <label>祝賀主題（例：開幕誌喜／新婚賀喜，常4字，66–72pt）</label>
+    <div class="field-with-size">
+      <input type="text" id="txtTitle" placeholder="開幕誌喜">
+      <input type="number" id="sizeTitle" class="size-input" placeholder="自動" title="字體大小(pt)，留空＝自動">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>賀詞（例：大展鴻圖，常4字，166–172pt；若2句用「／」分隔會分兩行）</label>
+    <div class="field-with-size">
+      <input type="text" id="txtMain" placeholder="大展鴻圖">
+      <input type="number" id="sizeMain" class="size-input" placeholder="自動" title="字體大小(pt)，留空＝自動">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>祝賀對象（收件單位／個人；4字時100pt，字數愈多字體自動愈小，太長自動分兩行）</label>
+    <div class="field-with-size">
+      <input type="text" id="txtRecipient" placeholder="○○股份有限公司">
+      <input type="number" id="sizeRecipient" class="size-input" placeholder="自動" title="字體大小(pt)，留空＝自動">
+    </div>
+  </div>
+
+  <div class="field-row2">
+    <div class="field">
+      <label>祝賀人頭銜（可留空）</label>
+      <div class="field-with-size">
+        <input type="text" id="txtSenderTitle" placeholder="董事長">
+        <input type="number" id="sizeSenderTitle" class="size-input" placeholder="自動" title="字體大小(pt)，留空＝自動">
+      </div>
+    </div>
+    <div class="field">
+      <label>祝賀人姓名</label>
+      <div class="field-with-size">
+        <input type="text" id="txtSenderName" placeholder="○○○">
+        <input type="number" id="sizeSenderName" class="size-input" placeholder="自動" title="字體大小(pt)，留空＝自動">
+      </div>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>落款用語（左下角）</label>
+    <div class="field-with-size">
+      <select id="selClosing">
+        <option value="賀">賀</option>
+        <option value="敬賀">敬賀</option>
+      </select>
+      <input type="number" id="sizeClosing" class="size-input" placeholder="自動" title="字體大小(pt)，留空＝自動">
+    </div>
+    <div class="hint">祝賀對象／祝賀主題／賀詞／祝賀人頭銜／姓名皆預設靠右靠上對齊，可在「進階：校正版位」內每個欄位下方調整對齊、粗體與字型；此欄位固定顯示在最左下角。每個字體大小欄位留空時會依區域大小自動縮放，填數字（單位pt）則強制套用該大小。</div>
+  </div>
+
+  <details open id="calDetails">
+    <summary>進階：校正版位與字體格式（粗體／字型／對齊）</summary>
+    <div id="zoneCalWrap"></div>
+  </details>
+
+  <div class="actions">
+    <button class="btn-primary" id="btnPrint">列印</button>
+    <button class="btn-secondary" id="btnSave">儲存這個尺寸的版位</button>
+  </div>
+  <div class="status" id="statusMsg"></div>
+
+  <div class="print-tips">
+    列印小提醒：列印對話框中將「紙張大小」設為與卡片相同的自訂尺寸、縮放比例設為 100%（不要用「配合頁面大小」）、邊界設為「無」，才能對準卡片本身固定的花邊與燙金字位置。
+  </div>
+</div>
+
+<div class="stage">
+  <div class="page" id="page"></div>
+</div>
+
+<script>
+const CM = 37.7952755906; // px per cm (96dpi reference for on-screen preview)
+const PT_TO_PX = 96/72;   // convert user-facing pt values to CSS px
+
+const FONT_FAMILY_CSS = {
+  kaiti:  '"DFKai-SB","BiauKai","標楷體","KaiTi",serif',
+  heiti:  '"Microsoft JhengHei","PingFang TC","Heiti TC",sans-serif',
+  mingti: '"PMingLiU","Songti TC","Noto Serif TC",serif',
+  lishu:  '"DFLiSu","LiSu","標楷體",serif'
+};
+const VALIGN_CSS = { top:"flex-start", center:"center", bottom:"flex-end" };
+
+const STYLE_CONTROL_IDS = {
+  title:       {size:"sizeTitle",       bold:"boldTitle",       font:"fontTitle",       align:"alignTitle"},
+  main:        {size:"sizeMain",        bold:"boldMain",        font:"fontMain",        align:"alignMain"},
+  recipient:   {size:"sizeRecipient",   bold:"boldRecipient",   font:"fontRecipient",   align:"alignRecipient"},
+  senderTitle: {size:"sizeSenderTitle", bold:"boldSenderTitle", font:"fontSenderTitle", align:"alignSenderTitle"},
+  senderName:  {size:"sizeSenderName",  bold:"boldSenderName",  font:"fontSenderName",  align:"alignSenderName"},
+  closing:     {size:"sizeClosing",     bold:"boldClosing",     font:"fontClosing",     align:"alignClosing"}
+};
+
+function syncStyleControlsFromState(){
+  for(const k in STYLE_CONTROL_IDS){
+    const ids = STYLE_CONTROL_IDS[k];
+    const z = state.zones[k];
+    document.getElementById(ids.size).value = z.fontSize || "";
+    document.getElementById(ids.bold).checked = !!z.bold;
+    document.getElementById(ids.font).value = z.fontFamily || "kaiti";
+    document.getElementById(ids.align).value = z.valign || "top";
+  }
+}
+
+function bindStyleControlEvents(){
+  for(const k in STYLE_CONTROL_IDS){
+    const ids = STYLE_CONTROL_IDS[k];
+    document.getElementById(ids.size).addEventListener("input", e=>{
+      const v = parseFloat(e.target.value);
+      state.zones[k].fontSize = (e.target.value.trim()!=="" && !isNaN(v) && v>0) ? v : null;
+      render();
+    });
+    document.getElementById(ids.bold).addEventListener("change", e=>{
+      state.zones[k].bold = e.target.checked; render();
+    });
+    document.getElementById(ids.font).addEventListener("change", e=>{
+      state.zones[k].fontFamily = e.target.value; render();
+    });
+    document.getElementById(ids.align).addEventListener("change", e=>{
+      state.zones[k].valign = e.target.value; render();
+    });
+  }
+}
+
+// ---- size presets: page size + starting zone guesses (cm) ----
+// A4 numbers below reflect the measurements given in the user's Word file:
+//   祝賀對象 zone: 24.5cm high x 6.5cm wide (4字=100pt standard)
+//   賀詞 zone: font 166-172pt for 4 chars
+//   祝賀主題 zone: font 66-72pt for 4 chars
+//   燙金花邊: 上底3cm / 下底8cm / 總高8.2cm (top-left corner)
+//   「祝」字: 6cm 見方 (top-right corner)
+//   底部統一預留 1cm
+// X-offsets (left/right placement of each column) are NOT given as coordinates
+// in the source file, so they are carried over as adjustable starting guesses —
+// use "進階：校正版位" against your real printed card to fine-tune them.
+// The other 3 sizes are scaled proportionally from A4 as a starting point only.
+// Exact coordinates supplied by the user, measured against their real 21x29cm
+// card with (0,0) at the top-left corner, x increasing right, y increasing down:
+//   祝 (exclude):        (15,0)-(21,6)
+//   燙金花邊 (exclude):  (0,0)(8.2,0)(8.2,3)(0,8) — a wedge, tall (8cm) at the
+//                        left edge, tapering to 3cm at x=8.2
+//   祝賀對象:            (15,6.5)-(19.8,28.5)
+//   祝賀主題:            (11.5,2)-(15,17)
+//   賀詞:                (5.5,4.5)-(11.5,27.5)
+//   祝賀人頭銜:          (0.5,7.5)-(5.5,15)
+//   祝賀人姓名:          (0.5,15)-(5.5,22.5)
+//   賀／敬賀: the user's message was cut off before giving these corners — the
+//   box below (0.5,22.5) is a placeholder filling the remaining space in that
+//   column; adjust it in "進階：校正版位" once confirmed.
+const BASE_A4 = {
+  page:{w:21, h:29},
+  zones:{
+    title:       {x:11.5, y:2,    w:3.5, h:15,  fontSize:null, bold:false, fontFamily:"kaiti", valign:"top"},
+    main:        {x:5.5,  y:4.5,  w:6.0, h:23,  fontSize:null, bold:false, fontFamily:"kaiti", valign:"top"},
+    recipient:   {x:15,   y:6.5,  w:4.8, h:22,  fontSize:null, bold:false, fontFamily:"kaiti", valign:"top"},
+    senderTitle: {x:0.5,  y:7.5,  w:5.0, h:7.5, fontSize:null, bold:false, fontFamily:"kaiti", valign:"top"},
+    senderName:  {x:0.5,  y:15,   w:5.0, h:7.5, fontSize:null, bold:false, fontFamily:"kaiti", valign:"top"},
+    closing:     {x:0.5,  y:22.5, w:5.0, h:6.0, fontSize:null, bold:false, fontFamily:"kaiti", valign:"bottom"}
+  },
+  exclude:{
+    zhu:    {x:15, y:0, w:6.0, h:6.0},
+    ribbon: {x:0,  y:0, w:8.2, h:8.0, points:[[0,0],[100,0],[100,37.5],[0,100]]}
+  }
+};
+
+function scalePreset(target){
+  const sx = target.w/BASE_A4.page.w, sy = target.h/BASE_A4.page.h;
+  const sc = (r)=>{
+    const o = {x:+(r.x*sx).toFixed(2), y:+(r.y*sy).toFixed(2), w:+(r.w*sx).toFixed(2), h:+(r.h*sy).toFixed(2)};
+    if(r.points){ o.points = r.points; } // percentages within the box, scale-independent
+    if(r.fontSize!==undefined){ o.fontSize=r.fontSize; o.bold=r.bold; o.fontFamily=r.fontFamily; o.valign=r.valign; }
+    return o;
+  };
+  const z={}, ex={};
+  for(const k in BASE_A4.zones) z[k]=sc(BASE_A4.zones[k]);
+  for(const k in BASE_A4.exclude) ex[k]=sc(BASE_A4.exclude[k]);
+  return {page:target, zones:z, exclude:ex};
+}
+
+const SIZES = {
+  "A4 (21×29)":         BASE_A4,
+  "15.5×21.5":          scalePreset({w:15.5, h:21.5}),
+  "10.6×15.3":          scalePreset({w:10.6, h:15.3}),
+  "18×26":              scalePreset({w:18,   h:26})
+};
+
+const ZONE_LABELS = {
+  title:"祝賀主題", main:"賀詞", recipient:"祝賀對象",
+  senderTitle:"祝賀人頭銜", senderName:"祝賀人姓名", closing:"落款（賀／敬賀）"
+};
+const ZONE_FONTNOTE = {
+  title:"標準4字：66–72pt", main:"標準4字：166–172pt", recipient:"標準4字：100pt（依字數自動縮放）",
+  senderTitle:"預設靠右靠上對齊，大小自行拿捏", senderName:"預設靠右靠上對齊，基準約66pt", closing:"固定字，預設靠右靠下對齊"
+};
+const EXCLUDE_LABELS = { zhu:"「祝」字區（6cm見方）", ribbon:"燙金花邊區（左緣8cm高，x=8.2cm處收窄為3cm）" };
+
+let currentSizeKey = Object.keys(SIZES)[0];
+let state = null;
+
+function loadState(key){ return JSON.parse(JSON.stringify(SIZES[key])); }
+function cmPx(v){ return (v*CM)+"px"; }
+
+function getTexts(){
+  return {
+    title: document.getElementById("txtTitle").value.trim(),
+    main: document.getElementById("txtMain").value.trim(),
+    recipient: document.getElementById("txtRecipient").value.trim(),
+    senderTitle: document.getElementById("txtSenderTitle").value.trim(),
+    senderName: document.getElementById("txtSenderName").value.trim(),
+    closing: document.getElementById("selClosing").value
+  };
+}
+
+function render(){
+  const p = state;
+  const pageEl = document.getElementById("page");
+  pageEl.style.width = cmPx(p.page.w);
+  pageEl.style.height = cmPx(p.page.h);
+  pageEl.innerHTML = "";
+  document.getElementById("pageSizeStyle").textContent =
+    `@page { size: ${p.page.w}cm ${p.page.h}cm; margin: 0; }`;
+
+  // exclusion guides (screen only)
+  for(const k in p.exclude){
+    const r = p.exclude[k];
+    const d = document.createElement("div");
+    d.className="exclude-box";
+    d.style.left=cmPx(r.x); d.style.top=cmPx(r.y); d.style.width=cmPx(r.w); d.style.height=cmPx(r.h);
+    const fill = document.createElement("div");
+    fill.className="exclude-fill";
+    if(r.points){
+      fill.style.clipPath = "polygon(" + r.points.map(pt=>pt[0]+"% "+pt[1]+"%").join(", ") + ")";
+    }
+    d.appendChild(fill);
+    const tag=document.createElement("span"); tag.className="tag"; tag.textContent=EXCLUDE_LABELS[k];
+    d.appendChild(tag);
+    pageEl.appendChild(d);
+  }
+
+  const texts = getTexts();
+
+  for(const k in p.zones){
+    const r = p.zones[k];
+    const guide = document.createElement("div");
+    guide.className="guide-box";
+    guide.style.left=cmPx(r.x); guide.style.top=cmPx(r.y); guide.style.width=cmPx(r.w); guide.style.height=cmPx(r.h);
+    guide.innerHTML = `<span class="tag">${ZONE_LABELS[k]}</span>`;
+    pageEl.appendChild(guide);
+
+    const zone = document.createElement("div");
+    zone.className="zone";
+    zone.style.left=cmPx(r.x); zone.style.top=cmPx(r.y); zone.style.width=cmPx(r.w); zone.style.height=cmPx(r.h);
+    fitTextIntoZone(zone, texts[k], r);
+    pageEl.appendChild(zone);
+  }
+}
+
+function splitColumns(text){
+  if(!text) return [];
+  const seps = /[\/／、]/;
+  if(seps.test(text)){
+    return text.split(seps).map(s=>s.trim()).filter(Boolean);
+  }
+  if(text.length > 8){
+    const mid = Math.ceil(text.length/2);
+    return [text.slice(0,mid), text.slice(mid)];
+  }
+  return [text];
+}
+
+function fitTextIntoZone(zoneEl, text, zoneState){
+  zoneEl.innerHTML = "";
+  const cols = splitColumns(text);
+  zoneEl.style.justifyContent = "flex-start"; // packs columns to the right (row-reverse)
+  zoneEl.style.alignItems = VALIGN_CSS[zoneState.valign] || "flex-start";
+  if(cols.length===0) return;
+
+  const boxWpx = zoneState.w*CM, boxHpx = zoneState.h*CM;
+  const n = cols.length;
+  const maxLen = Math.max(...cols.map(c=>c.length), 1);
+
+  let fontSize;
+  if(zoneState.fontSize){
+    fontSize = zoneState.fontSize * PT_TO_PX;
+  }else{
+    fontSize = Math.min(boxHpx/maxLen, boxWpx/n);
+    fontSize = Math.max(10, Math.min(fontSize, 340));
+  }
+
+  cols.forEach(colText=>{
+    const col = document.createElement("div");
+    col.className="col";
+    col.style.fontSize = fontSize+"px";
+    col.style.width = (boxWpx/n)+"px";
+    col.style.fontWeight = zoneState.bold ? "700" : "400";
+    col.style.fontFamily = FONT_FAMILY_CSS[zoneState.fontFamily] || FONT_FAMILY_CSS.kaiti;
+    col.style.alignItems = "flex-start"; // hug the right edge within the column's own width
+    col.textContent = colText;
+    zoneEl.appendChild(col);
+  });
+}
+
+function buildCalUI(){
+  const wrap = document.getElementById("zoneCalWrap");
+  wrap.innerHTML = "";
+  const all = {...state.zones, ...state.exclude};
+  const labels = {...ZONE_LABELS, ...EXCLUDE_LABELS};
+  for(const k in all){
+    const r = all[k];
+    const box = document.createElement("div");
+    box.className="zone-cal";
+    const note = ZONE_FONTNOTE[k] ? `<div class="fontnote">${ZONE_FONTNOTE[k]}</div>` : "";
+    const ids = STYLE_CONTROL_IDS[k];
+    const fmtRow = ids ? `
+      <div class="fmt-row">
+        <label><input type="checkbox" id="${ids.bold}"> 粗體</label>
+        <select id="${ids.font}">
+          <option value="kaiti">標楷體</option>
+          <option value="heiti">黑體</option>
+          <option value="mingti">明體</option>
+          <option value="lishu">隸書</option>
+        </select>
+        <select id="${ids.align}">
+          <option value="top">靠上對齊</option>
+          <option value="center">置中對齊</option>
+          <option value="bottom">靠下對齊</option>
+        </select>
+      </div>` : "";
+    box.innerHTML = `
+      <div class="name">${labels[k]}</div>
+      ${note}
+      <div class="lbl4"><span>X</span><span>Y</span><span>寬</span><span>高</span></div>
+      <div class="row3">
+        <input type="number" step="0.1" data-k="${k}" data-f="x" value="${r.x}">
+        <input type="number" step="0.1" data-k="${k}" data-f="y" value="${r.y}">
+        <input type="number" step="0.1" data-k="${k}" data-f="w" value="${r.w}">
+        <input type="number" step="0.1" data-k="${k}" data-f="h" value="${r.h}">
+      </div>
+      ${fmtRow}`;
+    wrap.appendChild(box);
+  }
+  wrap.querySelectorAll(".row3 input").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const k=inp.dataset.k, f=inp.dataset.f, v=parseFloat(inp.value)||0;
+      if(state.zones[k]) state.zones[k][f]=v;
+      else if(state.exclude[k]) state.exclude[k][f]=v;
+      render();
+    });
+  });
+  syncStyleControlsFromState();
+  bindStyleControlEvents();
+}
+
+function buildSizeButtons(){
+  const wrap = document.getElementById("sizeButtons");
+  wrap.innerHTML = "";
+  Object.keys(SIZES).forEach(key=>{
+    const b = document.createElement("button");
+    b.textContent = key;
+    if(key===currentSizeKey) b.classList.add("active");
+    b.addEventListener("click", async ()=>{
+      currentSizeKey = key;
+      await switchSize(key);
+      [...wrap.children].forEach(c=>c.classList.remove("active"));
+      b.classList.add("active");
+    });
+    wrap.appendChild(b);
+  });
+}
+
+async function storageGet(key){
+  try{
+    if(window.storage){ const r = await window.storage.get(key, false); return r; }
+  }catch(e){ /* fall through to localStorage */ }
+  const v = localStorage.getItem(key);
+  return v!==null ? {value:v} : null;
+}
+async function storageSet(key, value){
+  try{
+    if(window.storage){ return await window.storage.set(key, value, false); }
+  }catch(e){ /* fall through to localStorage */ }
+  localStorage.setItem(key, value);
+  return {value};
+}
+
+async function switchSize(key){
+  let saved = null;
+  try{
+    const res = await storageGet("preset:"+key);
+    if(res && res.value) saved = JSON.parse(res.value);
+  }catch(e){ /* no saved preset yet */ }
+  state = saved || loadState(key);
+  buildCalUI();
+  render();
+}
+
+async function saveCurrent(){
+  const status = document.getElementById("statusMsg");
+  try{
+    await storageSet("preset:"+currentSizeKey, JSON.stringify(state));
+    status.textContent = "已儲存「"+currentSizeKey+"」的版位，下次開啟會自動套用。";
+  }catch(e){
+    status.textContent = "儲存失敗，請稍後再試。";
+  }
+}
+
+["txtTitle","txtMain","txtRecipient","txtSenderTitle","txtSenderName"].forEach(id=>{
+  document.getElementById(id).addEventListener("input", render);
+});
+document.getElementById("selClosing").addEventListener("change", render);
+document.getElementById("btnPrint").addEventListener("click", ()=>window.print());
+document.getElementById("btnSave").addEventListener("click", saveCurrent);
+
+buildSizeButtons();
+switchSize(currentSizeKey);
+</script>
+</body>
+</html>
