@@ -72,11 +72,17 @@
     width:100%; padding:7px 8px; border:1px solid var(--line); border-radius:6px;
     font-size:14px; font-family:inherit;
   }
-  .field .hint{font-size:11px; color:#a19a8d; margin-top:3px;}
+  .field .hint, .zone-cal .hint{font-size:11px; color:#a19a8d; margin-top:3px;}
   .field-row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
 
   /* ---------- adjust column (per-zone cards) ---------- */
   .zone-cal{margin-bottom:14px; padding:10px 10px 12px; background:#fff; border:1px solid var(--line); border-radius:8px;}
+  .exclude-details{margin-top:6px;}
+  .exclude-details summary{cursor:pointer; font-size:12px; font-weight:600; color:#9a7a10; padding:8px 0; list-style:none;}
+  .exclude-details summary::-webkit-details-marker{display:none;}
+  .exclude-details summary::before{content:"▸ "; }
+  .exclude-details[open] summary::before{content:"▾ "; }
+  .exclude-details .zone-cal{margin-top:8px;}
   .zone-cal .name{font-size:12.5px; font-weight:700; margin-bottom:2px;}
   .zone-cal .fontnote{font-size:10.5px; color:#a3231f; margin-bottom:8px;}
   .pos-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;}
@@ -594,17 +600,15 @@ function buildCalUI(){
   wrap.innerHTML = "";
   const CONTENT_ORDER = ["recipient","title","main","senderTitle","senderName","closing"];
   const orderedKeys = CONTENT_ORDER.map(k => k==="main" ? (state.hideTitle ? "mainExpanded" : "main") : k);
-  const all = {};
-  orderedKeys.forEach(k => { all[k] = state.zones[k]; });
-  for(const k in state.exclude) all[k] = state.exclude[k];
-  const labels = {...ZONE_LABELS, ...EXCLUDE_LABELS};
-  for(const k in all){
-    const r = all[k];
+
+  orderedKeys.forEach(k=>{
+    const ids = STYLE_CONTROL_IDS[k==="mainExpanded" ? "main" : k];
+    const note = ZONE_FONTNOTE[k] ? `<div class="fontnote">${ZONE_FONTNOTE[k]}</div>` : "";
     const box = document.createElement("div");
     box.className="zone-cal";
-    const note = ZONE_FONTNOTE[k] ? `<div class="fontnote">${ZONE_FONTNOTE[k]}</div>` : "";
-    const ids = STYLE_CONTROL_IDS[k==="mainExpanded" ? "main" : k];
-    const fmtRow = ids ? `
+    box.innerHTML = `
+      <div class="name">${ZONE_LABELS[k]}</div>
+      ${note}
       <div class="fmt-row">
         <label>大小(pt) <input type="number" id="${ids.size}" placeholder="自動"></label>
         <label><input type="checkbox" id="${ids.bold}"> 粗體</label>
@@ -624,24 +628,34 @@ function buildCalUI(){
           <option value="center">置中對齊</option>
           <option value="left">靠左對齊</option>
         </select>
-      </div>` : "";
-    box.innerHTML = `
-      <div class="name">${labels[k]}</div>
-      ${note}
-      <div class="pos-grid">
-        <div class="pos-item"><label>左邊距</label><input type="number" step="0.1" data-k="${k}" data-f="x" value="${r.x}"></div>
-        <div class="pos-item"><label>上邊距</label><input type="number" step="0.1" data-k="${k}" data-f="y" value="${r.y}"></div>
-        <div class="pos-item"><label>寬度</label><input type="number" step="0.1" data-k="${k}" data-f="w" value="${r.w}"></div>
-        <div class="pos-item"><label>高度</label><input type="number" step="0.1" data-k="${k}" data-f="h" value="${r.h}"></div>
       </div>
-      ${fmtRow}`;
+      <div class="hint" style="margin-top:8px;">位置與大小請直接在右側預覽圖拖曳調整。</div>`;
     wrap.appendChild(box);
-  }
+  });
+
+  // 祝字／燙金花邊：改動頻率低，收進摺疊區
+  const excludeDetails = document.createElement("details");
+  excludeDetails.className="exclude-details";
+  const excludeBoxesHtml = Object.keys(state.exclude).map(k=>{
+    const r = state.exclude[k];
+    return `
+      <div class="zone-cal">
+        <div class="name">${EXCLUDE_LABELS[k]}</div>
+        <div class="pos-grid">
+          <div class="pos-item"><label>左邊距</label><input type="number" step="0.1" data-k="${k}" data-f="x" value="${r.x}"></div>
+          <div class="pos-item"><label>上邊距</label><input type="number" step="0.1" data-k="${k}" data-f="y" value="${r.y}"></div>
+          <div class="pos-item"><label>寬度</label><input type="number" step="0.1" data-k="${k}" data-f="w" value="${r.w}"></div>
+          <div class="pos-item"><label>高度</label><input type="number" step="0.1" data-k="${k}" data-f="h" value="${r.h}"></div>
+        </div>
+      </div>`;
+  }).join("");
+  excludeDetails.innerHTML = `<summary>「祝」字／燙金花邊位置（不常需要調整）</summary>${excludeBoxesHtml}`;
+  wrap.appendChild(excludeDetails);
+
   wrap.querySelectorAll(".pos-item input").forEach(inp=>{
     inp.addEventListener("input", ()=>{
       const k=inp.dataset.k, f=inp.dataset.f, v=parseFloat(inp.value)||0;
-      if(state.zones[k]) state.zones[k][f]=v;
-      else if(state.exclude[k]) state.exclude[k][f]=v;
+      if(state.exclude[k]) state.exclude[k][f]=v;
       render();
     });
   });
